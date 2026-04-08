@@ -5,7 +5,10 @@
   "scripts": {
     "capture:inspect": "node tools/gemini_inspect_ui.mjs",
     "capture:modes": "node tools/gemini_capture_mode_diffs.mjs",
-    "run:web": "node tools/gemini_web_runner.mjs"
+    "run:web": "node tools/gemini_web_runner.mjs",
+    "git:autosync": "powershell -ExecutionPolicy Bypass -File tools/git_autosync.ps1",
+    "git:autosync:install": "powershell -ExecutionPolicy Bypass -File tools/install_git_autosync_task.ps1",
+    "git:autosync:remove": "powershell -ExecutionPolicy Bypass -File tools/remove_git_autosync_task.ps1"
   },
   "dependencies": {
     "playwright": "^1.59.1"
