@@ -1,10 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { chromium } from "playwright";
-
-function normalizeText(value) {
-  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
-}
 
 async function readStdin() {
   const chunks = [];
@@ -24,67 +21,97 @@ function buildCookies(rawCookies) {
   }));
 }
 
-async function safeInnerText(locator) {
-  try {
-    return await locator.innerText();
-  } catch {
-    return "";
+async function createContext({
+  profileDir,
+  cookiesPath,
+  chromeExecutablePath,
+}) {
+  if (profileDir) {
+    return chromium.launchPersistentContext(profileDir, {
+      headless: true,
+      executablePath: chromeExecutablePath,
+      locale: "ru-RU",
+      viewport: { width: 1600, height: 1200 },
+      colorScheme: "light",
+    });
+  }
+
+  if (!cookiesPath) {
+    throw new Error("Missing cookiesPath.");
+  }
+
+  const rawCookies = JSON.parse(await fs.readFile(cookiesPath, "utf8"));
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: chromeExecutablePath,
+  });
+  const context = await browser.newContext({
+    locale: "ru-RU",
+    viewport: { width: 1600, height: 1200 },
+    colorScheme: "light",
+  });
+  await context.addCookies(buildCookies(rawCookies));
+  context.__browser = browser;
+  return context;
+}
+
+async function closeContext(context) {
+  const browser = context.__browser ?? null;
+  await context.close();
+  if (browser) {
+    await browser.close();
   }
 }
 
-async function inspectInfographicState(page) {
-  const studioText = normalizeText(await safeInnerText(page.locator("artifact-library").first()));
-  const chatText = normalizeText(await safeInnerText(page.locator("chat-panel").first()));
-  const emptyStateCount = await page.locator("chat-panel .chat-panel-empty-state").count().catch(() => 0);
-  const largeVisualCount = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll("chat-panel img, chat-panel canvas, chat-panel svg"))
-      .filter((element) => {
-        const rect = element.getBoundingClientRect();
-        return rect.width >= 320 && rect.height >= 320;
-      })
-      .length;
-  }).catch(() => 0);
-
-  const generatingMarkers = [
-    "генерируется",
-    "начинается генерация объекта",
-    "starting generation",
-    "in progress",
-  ];
-  const isGenerating = generatingMarkers.some(
-    (marker) => studioText.includes(marker) || chatText.includes(marker),
-  );
-  const isReady = !isGenerating && (largeVisualCount > 0 || emptyStateCount === 0);
-
-  return {
-    isReady,
-    isGenerating,
-    studioText,
-    chatText,
-    emptyStateCount,
-    largeVisualCount,
-  };
-}
-
-async function waitForInfographic(page, timeoutSec) {
+async function openInfographicViewer(page, timeoutSec) {
   const deadline = Date.now() + Math.max(30, timeoutSec) * 1000;
-  let lastState = null;
+  let lastStudioText = "";
 
   while (Date.now() < deadline) {
-    lastState = await inspectInfographicState(page);
-    if (lastState.isReady) {
-      return lastState;
+    const button = page.locator(".artifact-library-container .artifact-stretched-button").first();
+    if (await button.count().catch(() => 0)) {
+      await button.click({ timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      return;
     }
 
-    await page.waitForTimeout(5000);
+    lastStudioText = await page.locator(".artifact-library-container").first().innerText().catch(() => "");
+    await page.waitForTimeout(3000);
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => {});
     await page.waitForTimeout(4000);
   }
 
   throw new Error(
-    `NotebookLM did not finish the infographic in time. ` +
-      `Studio: ${lastState?.studioText || "n/a"}; Chat: ${lastState?.chatText || "n/a"}`,
+    `NotebookLM did not show the infographic artifact button in time. Studio: ${lastStudioText || "n/a"}`,
   );
+}
+
+async function waitForRenderedInfographic(page, timeoutSec) {
+  const selector = "artifact-viewer img, infographic-viewer img, image-viewer img";
+  await page.waitForSelector(selector, {
+    state: "visible",
+    timeout: Math.max(30000, timeoutSec * 1000),
+  });
+  await page.waitForFunction(
+    (imageSelector) => {
+      const image = document.querySelector(imageSelector);
+      return !!image && image.naturalWidth > 0 && image.naturalHeight > 0;
+    },
+    selector,
+    { timeout: Math.max(30000, timeoutSec * 1000) },
+  );
+  await page.waitForTimeout(3000);
+
+  const image = page.locator(selector).first();
+  const meta = await image.evaluate((element) => ({
+    currentSrc: element.currentSrc || element.getAttribute("src") || null,
+    naturalWidth: element.naturalWidth,
+    naturalHeight: element.naturalHeight,
+    clientWidth: element.clientWidth,
+    clientHeight: element.clientHeight,
+    alt: element.getAttribute("alt") || null,
+  }));
+  return { selector, meta };
 }
 
 async function captureInfographic(page, outputPath) {
@@ -93,7 +120,11 @@ async function captureInfographic(page, outputPath) {
       .boqOnegoogleliteOgbOneGoogleBar,
       notebook-header,
       section.source-panel,
-      studio-panel,
+      .artifact-viewer-header,
+      .artifact-viewer-footer,
+      .image-viewer-controls,
+      .feedback-container,
+      .studio-footer,
       footer,
       omnibar,
       follow-up,
@@ -106,20 +137,15 @@ async function captureInfographic(page, outputPath) {
       .app-body,
       notebook,
       .panel-container,
-      chat-panel,
-      .chat-panel-content {
+      .artifact-viewer-container,
+      .artifact-content,
+      .image-viewer-container {
         background: #ffffff !important;
       }
     `,
   }).catch(() => {});
 
-  const libraryItem = page.locator("artifact-library-item").first();
-  if (await libraryItem.count().catch(() => 0)) {
-    await libraryItem.click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(1200);
-  }
-
-  const target = page.locator("chat-panel").first();
+  const target = page.locator(".image-viewer-container").first();
   await target.waitFor({ state: "visible", timeout: 30000 });
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await target.screenshot({
@@ -137,39 +163,33 @@ async function main() {
   const outputPath = String(payload.outputPath || "").trim();
   const chromeExecutablePath = String(payload.chromeExecutablePath || "").trim() || undefined;
   const timeoutSec = Number(payload.timeoutSec || 420);
+  const profileDir =
+    String(payload.profileDir || "").trim() ||
+    path.join(os.homedir(), ".nlm", "chrome-profile");
 
   if (!notebookUrl) {
     throw new Error("Missing notebookUrl.");
-  }
-  if (!cookiesPath) {
-    throw new Error("Missing cookiesPath.");
   }
   if (!outputPath) {
     throw new Error("Missing outputPath.");
   }
 
-  const rawCookies = JSON.parse(await fs.readFile(cookiesPath, "utf8"));
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: chromeExecutablePath,
+  const context = await createContext({
+    profileDir,
+    cookiesPath,
+    chromeExecutablePath,
   });
 
   try {
-    const context = await browser.newContext({
-      locale: "ru-RU",
-      viewport: { width: 1600, height: 1200 },
-      colorScheme: "light",
-    });
-    await context.addCookies(buildCookies(rawCookies));
-
-    const page = await context.newPage();
+    const page = context.pages()[0] || (await context.newPage());
     await page.goto(notebookUrl, {
       waitUntil: "domcontentloaded",
       timeout: 120000,
     });
     await page.waitForTimeout(5000);
 
-    const state = await waitForInfographic(page, timeoutSec);
+    await openInfographicViewer(page, timeoutSec);
+    const state = await waitForRenderedInfographic(page, timeoutSec);
     await captureInfographic(page, outputPath);
 
     process.stdout.write(
@@ -185,7 +205,7 @@ async function main() {
       ),
     );
   } finally {
-    await browser.close();
+    await closeContext(context);
   }
 }
 

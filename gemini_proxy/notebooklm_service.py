@@ -669,9 +669,11 @@ class NotebookLMService:
 
         target = Path(output_path).resolve()
         target.parent.mkdir(parents=True, exist_ok=True)
+        self._terminate_existing_nlm_chrome()
         payload = {
             "notebookUrl": notebook_url,
             "cookiesPath": str(auth.cookies_file.resolve()),
+            "profileDir": str((Path.home() / ".nlm" / "chrome-profile").resolve()),
             "outputPath": str(target),
             "chromeExecutablePath": self.settings.chrome_executable_path,
             "timeoutSec": max(30, timeout_sec),
@@ -681,6 +683,7 @@ class NotebookLMService:
             input=json.dumps(payload, ensure_ascii=False),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=max(90, timeout_sec + 60),
             check=False,
         )

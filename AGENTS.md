@@ -20,6 +20,7 @@ This file is the primary project reference. The former `README.md` content is me
 - If the final summary is regenerated, the previous infographic becomes stale and must be rebuilt.
 - The second source block uses a required start date and an optional end date; if the end date is provided, it must be later than the start date.
 - The UI must not offer document download before the user explicitly generated a document in the current session.
+- After important changes, ask the user whether to push to git; do not push automatically.
 
 ## Quick Start
 
