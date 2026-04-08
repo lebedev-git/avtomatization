@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админ-панель</title>
+  <style>
+    :root {
+      --bg: #f4efe5;
+      --panel: rgba(255, 252, 246, 0.95);
+      --line: #d9d1c1;
+      --text: #1f231e;
+      --muted: #677066;
+      --accent: #14573d;
+      --ok: #1f7b52;
+      --error: #b1533c;
+      --shadow: 0 18px 40px rgba(42, 39, 32, 0.1);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(225, 235, 227, 0.92) 0, transparent 24%),
+        linear-gradient(180deg, #faf7f2 0%, var(--bg) 100%);
+    }
+
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .topbar,
+    .toolbar,
+    .view {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      padding: 16px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .top-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .back-link,
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 11px 16px;
+      border: 0;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.16s ease, opacity 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .back-link {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+    }
+
+    button:hover,
+    .back-link:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+      transform: none;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .toolbar {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .toolbar-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .toolbar-copy {
+      display: grid;
+      gap: 6px;
+    }
+
+    .toolbar-copy h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .toolbar-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 760px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .agent-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .agent-btn {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      min-width: 144px;
+    }
+
+    .agent-btn.active {
+      border-color: rgba(20, 87, 61, 0.28);
+      background: rgba(228, 241, 234, 0.95);
+      color: var(--accent);
+    }
+
+    .status {
+      min-height: 22px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--error); }
+
+    .view {
+      padding: 18px;
+    }
+
+    .view.hidden {
+      display: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.55);
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-head h3 {
+      margin: 0 0 6px;
+      font-size: 21px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .card-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .badge {
+      white-space: nowrap;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #efe8d9;
+      color: #5d665d;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--text);
+      padding: 14px 16px;
+      font: inherit;
+      line-height: 1.55;
+      resize: vertical;
+    }
+
+    .sources {
+      display: grid;
+      gap: 10px;
+      padding-top: 4px;
+    }
+
+    .sources-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .form-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-card {
+      border: 1px dashed var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(249, 246, 240, 0.78);
+      padding: 12px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .form-card strong {
+      font-size: 14px;
+    }
+
+    .form-card span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    @media (max-width: 1280px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .toolbar-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .toolbar-actions {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        padding: 14px;
+      }
+
+      .agent-btn,
+      .primary {
+        width: 100%;
+      }
+
+      .toolbar-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <h1>Админ-панель</h1>
+      <div class="top-links">
+        <a class="back-link" href="/notebooklm-admin">NotebookLM</a>
+        <a class="back-link" href="/web-playground">Вернуться к агентам</a>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <div class="toolbar-head">
+        <div class="toolbar-copy">
+          <h2 id="currentTitle">Аналитика</h2>
+          <p id="currentDescription">Промпты для первого дня, второго дня, общей итоговой аналитики и блока инфографики.</p>
+        </div>
+        <div class="toolbar-actions">
+          <div class="agent-list" id="agentList"></div>
+          <button class="primary" id="saveBtn" type="button">Сохранить промпты аналитики</button>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="view" id="analyticsView">
+      <div class="grid analytics-grid">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Входная и выходная анкеты</h3>
+              <p>Промпт для одного документа по выбранной дате.</p>
+            </div>
+            <div class="badge">Аналитика</div>
+          </div>
+
+          <label>
+            Редактируемый промпт
+            <textarea id="day1Prompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Источники</div>
+            <div class="form-list" id="day1Forms"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Опрос по дате</h3>
+              <p>Промпт для одного документа по одной выбранной дате или диапазону.</p>
+            </div>
+            <div class="badge">Аналитика</div>
+          </div>
+
+          <label>
+            Редактируемый промпт
+            <textarea id="day2Prompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Источник</div>
+            <div class="form-list" id="day2Forms"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Итоговая аналитика</h3>
+              <p>Промпт для итогового документа, который собирается только из двух готовых текстов.</p>
+            </div>
+            <div class="badge">Аналитика</div>
+          </div>
+
+          <label>
+            Редактируемый промпт
+            <textarea id="summaryPrompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Источники</div>
+            <div class="form-card">
+              <strong>Документ 1</strong>
+              <span>Готовый текст по входной и выходной анкете первого дня.</span>
+            </div>
+            <div class="form-card">
+              <strong>Документ 2</strong>
+              <span>Готовый текст по анкете второго дня.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Инфографика</h3>
+              <p>Промпт для отдельного блокнота NotebookLM, который получает Google Doc, итоговую аналитику, фото и логотип.</p>
+            </div>
+            <div class="badge">NotebookLM</div>
+          </div>
+
+          <label>
+            Редактируемый промпт
+            <textarea id="infographicPrompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Источники</div>
+            <div class="form-card">
+              <strong>Google Doc</strong>
+              <span>Пользователь вставляет ссылку на документ Google как визуальный бриф.</span>
+            </div>
+            <div class="form-card">
+              <strong>Итоговая аналитика</strong>
+              <span>Подставляется автоматически и блокирует запуск, пока итоговая аналитика не собрана.</span>
+            </div>
+            <div class="form-card">
+              <strong>Фото и логотип</strong>
+              <span>Пользователь загружает общее фото и логотип для визуальных ориентиров.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view hidden" id="protocolView">
+      <div class="grid">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Протокол: транскрибация фрагментов</h3>
+              <p>Первый шаг: каждый аудиофрагмент записи отдельно расшифровывается в модели.</p>
+            </div>
+            <div class="badge">Протокол</div>
+          </div>
+
+          <label>
+            Промпт транскрибации фрагмента
+            <textarea id="protocolAnalysisPrompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Вход</div>
+            <div class="form-card">
+              <strong>Файл записи</strong>
+              <span>Видео или аудио встречи, которое пользователь загружает в агент «Протокол».</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h3>Протокол: итоговый документ</h3>
+              <p>Второй шаг: на основе объединенной транскрибации собирается финальный протокол встречи.</p>
+            </div>
+            <div class="badge">Протокол</div>
+          </div>
+
+          <label>
+            Промпт итогового протокола
+            <textarea id="protocolPrompt"></textarea>
+          </label>
+
+          <div class="sources">
+            <div class="sources-title">Источники</div>
+            <div class="form-card">
+              <strong>Объединенная транскрибация</strong>
+              <span>Единый текст, собранный из всех отдельных транскрибаций аудиофрагментов.</span>
+            </div>
+            <div class="form-card">
+              <strong>Метаданные нарезки</strong>
+              <span>Диапазоны фрагментов и служебный контекст обработки записи.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="/ui/admin/main.js"></script>
+</body>
+</html>

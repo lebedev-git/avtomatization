@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NotebookLM</title>
+  <style>
+    :root {
+      --bg: #f4efe5;
+      --panel: rgba(255, 252, 246, 0.96);
+      --line: #d9d1c1;
+      --text: #1f231e;
+      --muted: #677066;
+      --accent: #14573d;
+      --ok: #1f7b52;
+      --error: #b1533c;
+      --shadow: 0 18px 40px rgba(42, 39, 32, 0.1);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(225, 235, 227, 0.92) 0, transparent 24%),
+        linear-gradient(180deg, #faf7f2 0%, var(--bg) 100%);
+    }
+
+    .page { max-width: 1640px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+    .topbar, .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      padding: 16px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .topbar-copy { display: grid; gap: 6px; }
+    .topbar-copy h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1;
+    }
+    .topbar-copy p {
+      margin: 0;
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .top-actions, .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .sidebar, .content, .card, .field, .meta-list, .source-list, .artifact-list, .citation-list { display: grid; gap: 14px; }
+    .sidebar, .content { gap: 16px; }
+    .card { padding: 18px; }
+
+    a, button, select, input, textarea { font: inherit; }
+    .nav-link, button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 11px 16px;
+      border: 0;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .nav-link {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-weight: 700;
+    }
+    button { background: var(--accent); color: #fff; font-weight: 700; }
+    button.secondary {
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(20, 87, 61, 0.2);
+    }
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    h2 { margin: 0; font-size: 22px; line-height: 1.15; }
+    p, .note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    input, select, textarea, pre {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+    }
+    input, select, textarea { background: rgba(255, 255, 255, 0.94); color: var(--text); }
+    textarea { min-height: 150px; resize: vertical; }
+    pre {
+      margin: 0;
+      background: rgba(21, 28, 24, 0.95);
+      color: #e7ede7;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 120px;
+    }
+
+    .inline-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .status { min-height: 22px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--error); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #efe8d9;
+      color: #5d665d;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .meta-item, .source-item, .artifact-item, .citation-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 12px;
+      display: grid;
+      gap: 4px;
+    }
+    .meta-item.active { border-color: rgba(20, 87, 61, 0.25); background: rgba(228, 241, 234, 0.82); }
+    .meta-item span, .source-item span, .artifact-item span, .citation-item span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .result-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .artifact-form {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(20, 87, 61, 0.12);
+      background: linear-gradient(180deg, rgba(228, 241, 234, 0.36) 0%, rgba(255, 255, 255, 0.7) 100%);
+    }
+
+    @media (max-width: 1200px) { .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) {
+      .page { padding: 14px; }
+      .inline-fields { grid-template-columns: 1fr; }
+      .top-actions, .actions { flex-direction: column; }
+      .top-actions > *, .actions > * { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-copy">
+        <h1>NotebookLM</h1>
+        <p>Неофициальное подключение через <code>notebooklm-cli</code>. Здесь можно авторизоваться под тем же Google-аккаунтом, создать блокнот, подключить Google Doc или URL и запустить query, slides, infographic, audio и другие артефакты.</p>
+      </div>
+      <div class="top-actions">
+        <a class="nav-link" href="/admin">Админ-панель</a>
+        <a class="nav-link" href="/invoice_main">Агенты</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="card">
+          <h2>Авторизация</h2>
+          <p>Логин открывает Chrome и ждёт вход в NotebookLM. Используйте тот же Google-аккаунт, что и для Gemini.</p>
+          <label>Профиль NotebookLM<input id="profileInput" type="text" value="default" placeholder="default"></label>
+          <div class="actions">
+            <button id="loginBtn" type="button">Войти в NotebookLM</button>
+            <button id="refreshAuthBtn" class="secondary" type="button">Обновить статус</button>
+          </div>
+          <div class="status" id="authStatus"></div>
+          <div class="meta-list" id="profileList"></div>
+        </section>
+
+        <section class="card">
+          <h2>Блокноты</h2>
+          <p>Создавайте блокноты прямо из портала или подключайтесь к уже существующим.</p>
+          <label>Текущий блокнот<select id="notebookSelect"></select></label>
+          <div class="actions">
+            <button id="refreshNotebooksBtn" class="secondary" type="button">Обновить список</button>
+          </div>
+          <div class="inline-fields">
+            <label>Новый блокнот<input id="newNotebookTitle" type="text" placeholder="Например: Аналитика клиента"></label>
+            <label>Действие<button id="createNotebookBtn" type="button">Создать</button></label>
+          </div>
+          <div class="status" id="notebookStatus"></div>
+          <div class="meta-list" id="notebookMeta"></div>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="card">
+          <h2>Источники</h2>
+          <p>Поле принимает Google Doc URL, обычную ссылку, YouTube, Drive document id или произвольный текст. В режиме <code>auto</code> backend сам определит нужный тип.</p>
+          <div class="inline-fields">
+            <label>Тип источника
+              <select id="sourceKind">
+                <option value="auto">auto</option>
+                <option value="url">url</option>
+                <option value="drive">drive</option>
+                <option value="youtube">youtube</option>
+                <option value="text">text</option>
+              </select>
+            </label>
+            <label>Drive type
+              <select id="sourceDocType">
+                <option value="doc">doc</option>
+                <option value="slides">slides</option>
+                <option value="sheets">sheets</option>
+                <option value="pdf">pdf</option>
+              </select>
+            </label>
+          </div>
+          <label>Название источника<input id="sourceTitle" type="text" placeholder="Необязательно"></label>
+          <label>Значение источника<textarea id="sourceValue" placeholder="Вставьте Google Doc URL, обычную ссылку или текст"></textarea></label>
+          <div class="actions">
+            <button id="addSourceBtn" type="button">Подключить источник</button>
+            <button id="refreshSourcesBtn" class="secondary" type="button">Обновить источники</button>
+          </div>
+          <div class="status" id="sourceStatus"></div>
+          <div class="source-list" id="sourceList"></div>
+        </section>
+
+        <section class="card">
+          <div class="result-head">
+            <div>
+              <h2>Query</h2>
+              <p>Для extraction лучше сразу просить строго JSON.</p>
+            </div>
+            <div class="pill" id="queryNotebookBadge">Блокнот не выбран</div>
+          </div>
+          <label>Промт<textarea id="queryPrompt" placeholder='Например: Проанализируй источники и верни строго JSON: {"company":"","goals":[],"risks":[]}.'></textarea></label>
+          <div class="actions"><button id="queryBtn" type="button">Запустить query</button></div>
+          <div class="status" id="queryStatus"></div>
+          <pre id="queryAnswer">Ответ появится здесь.</pre>
+          <div class="citation-list" id="citationList"></div>
+        </section>
+
+        <section class="card">
+          <h2>Артефакты</h2>
+          <p>Можно запускать генерацию артефактов и сразу получать текущий studio status.</p>
+          <div class="artifact-form">
+            <div class="inline-fields">
+              <label>Тип артефакта
+                <select id="artifactType">
+                  <option value="audio">audio</option>
+                  <option value="report">report</option>
+                  <option value="quiz">quiz</option>
+                  <option value="flashcards">flashcards</option>
+                  <option value="mindmap">mindmap</option>
+                  <option value="slides">slides</option>
+                  <option value="infographic">infographic</option>
+                  <option value="video">video</option>
+                  <option value="data-table">data-table</option>
+                </select>
+              </label>
+              <label>Язык<input id="artifactLanguage" type="text" value="ru" placeholder="ru"></label>
+            </div>
+            <label>Focus prompt / описание<textarea id="artifactPrompt" placeholder="Для slides / infographic / audio можно задать focus prompt. Для data-table это поле используется как описание таблицы."></textarea></label>
+            <div class="actions">
+              <button id="runArtifactBtn" type="button">Создать артефакт</button>
+              <button id="refreshStudioBtn" class="secondary" type="button">Обновить studio status</button>
+            </div>
+          </div>
+          <div class="status" id="artifactStatus"></div>
+          <div class="artifact-list" id="artifactList"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      auth: null,
+      notebooks: [],
+      selectedNotebookId: "",
+      sources: [],
+      studioItems: [],
+      busy: { auth: false, notebooks: false, sources: false, query: false, artifact: false },
+    };
+
+    const el = {
+      profileInput: document.getElementById("profileInput"),
+      loginBtn: document.getElementById("loginBtn"),
+      refreshAuthBtn: document.getElementById("refreshAuthBtn"),
+      authStatus: document.getElementById("authStatus"),
+      profileList: document.getElementById("profileList"),
+      notebookSelect: document.getElementById("notebookSelect"),
+      refreshNotebooksBtn: document.getElementById("refreshNotebooksBtn"),
+      newNotebookTitle: document.getElementById("newNotebookTitle"),
+      createNotebookBtn: document.getElementById("createNotebookBtn"),
+      notebookStatus: document.getElementById("notebookStatus"),
+      notebookMeta: document.getElementById("notebookMeta"),
+      sourceKind: document.getElementById("sourceKind"),
+      sourceDocType: document.getElementById("sourceDocType"),
+      sourceTitle: document.getElementById("sourceTitle"),
+      sourceValue: document.getElementById("sourceValue"),
+      addSourceBtn: document.getElementById("addSourceBtn"),
+      refreshSourcesBtn: document.getElementById("refreshSourcesBtn"),
+      sourceStatus: document.getElementById("sourceStatus"),
+      sourceList: document.getElementById("sourceList"),
+      queryNotebookBadge: document.getElementById("queryNotebookBadge"),
+      queryPrompt: document.getElementById("queryPrompt"),
+      queryBtn: document.getElementById("queryBtn"),
+      queryStatus: document.getElementById("queryStatus"),
+      queryAnswer: document.getElementById("queryAnswer"),
+      citationList: document.getElementById("citationList"),
+      artifactType: document.getElementById("artifactType"),
+      artifactLanguage: document.getElementById("artifactLanguage"),
+      artifactPrompt: document.getElementById("artifactPrompt"),
+      runArtifactBtn: document.getElementById("runArtifactBtn"),
+      refreshStudioBtn: document.getElementById("refreshStudioBtn"),
+      artifactStatus: document.getElementById("artifactStatus"),
+      artifactList: document.getElementById("artifactList"),
+    };
+
+    function profileName() {
+      return (el.profileInput.value || "default").trim() || "default";
+    }
+
+    function selectedNotebookId() {
+      return state.selectedNotebookId || "";
+    }
+
+    function setStatus(node, message, tone = "") {
+      node.textContent = message || "";
+      node.className = `status ${tone}`.trim();
+    }
+
+    function clear(node) {
+      node.replaceChildren();
+    }
+
+    function setBusy(key, value) {
+      state.busy[key] = value;
+      el.loginBtn.disabled = state.busy.auth;
+      el.refreshAuthBtn.disabled = state.busy.auth;
+      el.refreshNotebooksBtn.disabled = state.busy.notebooks;
+      el.createNotebookBtn.disabled = state.busy.notebooks;
+      el.notebookSelect.disabled = state.busy.notebooks || state.busy.sources || state.busy.artifact;
+      el.addSourceBtn.disabled = state.busy.sources;
+      el.refreshSourcesBtn.disabled = state.busy.sources;
+      el.queryBtn.disabled = state.busy.query;
+      el.runArtifactBtn.disabled = state.busy.artifact;
+      el.refreshStudioBtn.disabled = state.busy.artifact;
+    }
+
+    async function fetchJson(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      headers.set("Accept", "application/json");
+      if (typeof options.body === "string" && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+      const response = await fetch(url, { ...options, headers });
+      const raw = await response.text();
+      const payload = raw ? JSON.parse(raw) : {};
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || "Запрос не выполнен.");
+      }
+      return payload;
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    }
+
+    function renderProfiles() {
+      clear(el.profileList);
+      const profiles = Array.isArray(state.auth?.profiles) ? state.auth.profiles : [];
+      if (!profiles.length) {
+        const item = document.createElement("div");
+        item.className = "meta-item";
+        item.innerHTML = "<strong>Профилей пока нет</strong><span>После первого логина здесь появится сохранённый профиль.</span>";
+        el.profileList.append(item);
+        return;
+      }
+
+      profiles.forEach((profile) => {
+        const item = document.createElement("div");
+        item.className = `meta-item${profile.name === profileName() ? " active" : ""}`;
+        const title = document.createElement("strong");
+        title.textContent = profile.name;
+        const email = document.createElement("span");
+        email.textContent = profile.email || "Email пока не определён";
+        const meta = document.createElement("span");
+        meta.textContent = `Путь: ${profile.profile_dir} • Проверен: ${formatDateTime(profile.last_validated)}`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "ghost";
+        button.textContent = "Использовать";
+        button.addEventListener("click", async () => {
+          el.profileInput.value = profile.name;
+          await refreshAll();
+        });
+        item.append(title, email, meta, button);
+        el.profileList.append(item);
+      });
+    }
+
+    function renderNotebookSelect() {
+      clear(el.notebookSelect);
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = state.notebooks.length ? "Выберите блокнот" : "Блокнотов пока нет";
+      el.notebookSelect.append(placeholder);
+
+      state.notebooks.forEach((notebook) => {
+        const option = document.createElement("option");
+        option.value = notebook.id;
+        option.textContent = `${notebook.title} • ${notebook.source_count || 0} sources`;
+        if (notebook.id === state.selectedNotebookId) {
+          option.selected = true;
+        }
+        el.notebookSelect.append(option);
+      });
+    }
+
+    function renderNotebookMeta() {
+      clear(el.notebookMeta);
+      const notebook = state.notebooks.find((item) => item.id === state.selectedNotebookId);
+      if (!notebook) {
+        el.queryNotebookBadge.textContent = "Блокнот не выбран";
+        const item = document.createElement("div");
+        item.className = "meta-item";
+        item.innerHTML = "<strong>Блокнот не выбран</strong><span>Сначала выберите или создайте notebook.</span>";
+        el.notebookMeta.append(item);
+        return;
+      }
+
+      el.queryNotebookBadge.textContent = notebook.title;
+      const item = document.createElement("div");
+      item.className = "meta-item active";
+      const title = document.createElement("strong");
+      title.textContent = notebook.title;
+      const info = document.createElement("span");
+      info.textContent = `ID: ${notebook.id} • sources: ${notebook.source_count || 0} • ownership: ${notebook.ownership || "unknown"}`;
+      const meta = document.createElement("span");
+      meta.textContent = `Создан: ${formatDateTime(notebook.created_at)} • Обновлён: ${formatDateTime(notebook.modified_at)}`;
+      item.append(title, info, meta);
+      if (notebook.url) {
+        const link = document.createElement("a");
+        link.className = "nav-link";
+        link.href = notebook.url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = "Открыть в NotebookLM";
+        item.append(link);
+      }
+      el.notebookMeta.append(item);
+    }
+
+    function renderSources() {
+      clear(el.sourceList);
+      if (!state.sources.length) {
+        const item = document.createElement("div");
+        item.className = "source-item";
+        item.innerHTML = "<strong>Источников пока нет</strong><span>После добавления здесь появится список материалов.</span>";
+        el.sourceList.append(item);
+        return;
+      }
+
+      state.sources.forEach((source) => {
+        const item = document.createElement("div");
+        item.className = "source-item";
+        const title = document.createElement("strong");
+        title.textContent = source.title || source.id || "Untitled source";
+        const meta = document.createElement("span");
+        meta.textContent = [
+          source.id ? `ID: ${source.id}` : "",
+          source.type ? `type: ${source.type}` : "",
+          source.is_stale === true ? "stale: yes" : "",
+          source.original_type ? `original: ${source.original_type}` : "",
+        ].filter(Boolean).join(" • ");
+        const url = document.createElement("span");
+        url.textContent = source.url || "URL не определён";
+        item.append(title, meta, url);
+        el.sourceList.append(item);
+      });
+    }
+
+    function renderCitations(payload) {
+      clear(el.citationList);
+      const citations = payload?.citations || {};
+      const sources = Array.isArray(payload?.sources) ? payload.sources : [];
+      const sourceMap = new Map(sources.map((source) => [source.id, source]));
+      Object.entries(citations).forEach(([number, sourceId]) => {
+        const source = sourceMap.get(sourceId) || {};
+        const item = document.createElement("div");
+        item.className = "citation-item";
+        const title = document.createElement("strong");
+        title.textContent = `Сноска [${number}]`;
+        const meta = document.createElement("span");
+        meta.textContent = `${source.title || "Источник"} • ${sourceId}`;
+        const extra = document.createElement("span");
+        extra.textContent = source.url || source.type || "Дополнительных данных нет";
+        item.append(title, meta, extra);
+        el.citationList.append(item);
+      });
+    }
+
+    function renderArtifacts() {
+      clear(el.artifactList);
+      if (!state.studioItems.length) {
+        const item = document.createElement("div");
+        item.className = "artifact-item";
+        item.innerHTML = "<strong>Studio пока пуст</strong><span>После генерации здесь появятся audio, slides, infographic и другие артефакты.</span>";
+        el.artifactList.append(item);
+        return;
+      }
+
+      state.studioItems.forEach((artifact) => {
+        const item = document.createElement("div");
+        item.className = "artifact-item";
+        const title = document.createElement("strong");
+        title.textContent = artifact.title || artifact.type || artifact.id || "Artifact";
+        const meta = document.createElement("span");
+        meta.textContent = [
+          artifact.id ? `ID: ${artifact.id}` : "",
+          artifact.type ? `type: ${artifact.type}` : "",
+          artifact.status ? `status: ${artifact.status}` : "",
+        ].filter(Boolean).join(" • ");
+        const extra = document.createElement("span");
+        extra.textContent = artifact.url || artifact.created_at || artifact.updated_at || "Дополнительные поля смотрите в raw статусе NotebookLM.";
+        item.append(title, meta, extra);
+        el.artifactList.append(item);
+      });
+    }
+
+    async function loadAuthStatus() {
+      setBusy("auth", true);
+      setStatus(el.authStatus, "Проверяю статус NotebookLM...");
+      try {
+        state.auth = await fetchJson(`/notebooklm/auth/status?profile=${encodeURIComponent(profileName())}`);
+        setStatus(
+          el.authStatus,
+          state.auth.authenticated
+            ? `Сессия активна. Доступно блокнотов: ${state.auth.notebook_count}.`
+            : state.auth.message || "Профиль ещё не авторизован.",
+          state.auth.authenticated ? "ok" : "",
+        );
+        renderProfiles();
+      } catch (error) {
+        setStatus(el.authStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("auth", false);
+      }
+    }
+
+    async function loginNotebookLM() {
+      setBusy("auth", true);
+      setStatus(el.authStatus, "Открываю Chrome и жду вход в NotebookLM...");
+      try {
+        state.auth = await fetchJson("/notebooklm/login", {
+          method: "POST",
+          body: JSON.stringify({ profile: profileName(), timeout_sec: 300 }),
+        });
+        renderProfiles();
+        setStatus(el.authStatus, state.auth.message || "Авторизация завершена.", "ok");
+        await loadNotebooks(true);
+      } catch (error) {
+        setStatus(el.authStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("auth", false);
+      }
+    }
+
+    async function loadNotebooks(silent = false) {
+      setBusy("notebooks", true);
+      if (!silent) setStatus(el.notebookStatus, "Загружаю блокноты...");
+      try {
+        const payload = await fetchJson(`/notebooklm/notebooks?profile=${encodeURIComponent(profileName())}`);
+        state.notebooks = Array.isArray(payload.notebooks) ? payload.notebooks : [];
+        if (!state.notebooks.some((item) => item.id === state.selectedNotebookId)) {
+          state.selectedNotebookId = state.notebooks[0]?.id || "";
+        }
+        renderNotebookSelect();
+        renderNotebookMeta();
+        if (!silent) {
+          setStatus(el.notebookStatus, state.notebooks.length ? "Блокноты загружены." : "Блокнотов пока нет.", state.notebooks.length ? "ok" : "");
+        }
+        await loadNotebookData(true);
+      } catch (error) {
+        setStatus(el.notebookStatus, String(error.message || error), "err");
+        state.notebooks = [];
+        state.selectedNotebookId = "";
+        state.sources = [];
+        state.studioItems = [];
+        renderNotebookSelect();
+        renderNotebookMeta();
+        renderSources();
+        renderArtifacts();
+      } finally {
+        setBusy("notebooks", false);
+      }
+    }
+
+    async function createNotebook() {
+      const title = (el.newNotebookTitle.value || "").trim();
+      if (!title) {
+        setStatus(el.notebookStatus, "Введите название нового блокнота.", "err");
+        return;
+      }
+
+      setBusy("notebooks", true);
+      setStatus(el.notebookStatus, "Создаю блокнот в NotebookLM...");
+      try {
+        const payload = await fetchJson("/notebooklm/notebooks", {
+          method: "POST",
+          body: JSON.stringify({ profile: profileName(), title }),
+        });
+        el.newNotebookTitle.value = "";
+        state.selectedNotebookId = payload.notebook.id;
+        setStatus(el.notebookStatus, `Блокнот "${payload.notebook.title}" создан.`, "ok");
+        await loadNotebooks(true);
+      } catch (error) {
+        setStatus(el.notebookStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("notebooks", false);
+      }
+    }
+
+    async function loadSources(silent = false) {
+      if (!selectedNotebookId()) {
+        state.sources = [];
+        renderSources();
+        if (!silent) setStatus(el.sourceStatus, "Сначала выберите блокнот.");
+        return;
+      }
+
+      setBusy("sources", true);
+      if (!silent) setStatus(el.sourceStatus, "Загружаю источники...");
+      try {
+        const payload = await fetchJson(
+          `/notebooklm/sources?profile=${encodeURIComponent(profileName())}&notebook_id=${encodeURIComponent(selectedNotebookId())}`,
+        );
+        state.sources = Array.isArray(payload.sources) ? payload.sources : [];
+        renderSources();
+        if (!silent) {
+          setStatus(el.sourceStatus, state.sources.length ? "Источники обновлены." : "Источников пока нет.", state.sources.length ? "ok" : "");
+        }
+      } catch (error) {
+        setStatus(el.sourceStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("sources", false);
+      }
+    }
+
+    async function addSource() {
+      if (!selectedNotebookId()) {
+        setStatus(el.sourceStatus, "Сначала выберите блокнот.", "err");
+        return;
+      }
+
+      const value = (el.sourceValue.value || "").trim();
+      if (!value) {
+        setStatus(el.sourceStatus, "Заполните значение источника.", "err");
+        return;
+      }
+
+      setBusy("sources", true);
+      setStatus(el.sourceStatus, "Подключаю источник к NotebookLM...");
+      try {
+        const payload = await fetchJson("/notebooklm/sources", {
+          method: "POST",
+          body: JSON.stringify({
+            profile: profileName(),
+            notebook_id: selectedNotebookId(),
+            kind: el.sourceKind.value,
+            value,
+            title: (el.sourceTitle.value || "").trim() || null,
+            doc_type: el.sourceDocType.value,
+            wait_timeout_sec: 30,
+          }),
+        });
+        state.sources = Array.isArray(payload.sources) ? payload.sources : [];
+        renderSources();
+        setStatus(
+          el.sourceStatus,
+          Array.isArray(payload.new_sources) && payload.new_sources.length
+            ? `Источник подключён. Новых sources: ${payload.new_sources.length}.`
+            : `Источник отправлен в NotebookLM. Тип: ${payload.resolved_kind}.`,
+          "ok",
+        );
+        await loadNotebooks(true);
+      } catch (error) {
+        setStatus(el.sourceStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("sources", false);
+      }
+    }
+
+    async function runQuery() {
+      if (!selectedNotebookId()) {
+        setStatus(el.queryStatus, "Сначала выберите блокнот.", "err");
+        return;
+      }
+
+      const prompt = (el.queryPrompt.value || "").trim();
+      if (!prompt) {
+        setStatus(el.queryStatus, "Введите промт для query.", "err");
+        return;
+      }
+
+      setBusy("query", true);
+      setStatus(el.queryStatus, "Отправляю query в NotebookLM...");
+      try {
+        const payload = await fetchJson("/notebooklm/query", {
+          method: "POST",
+          body: JSON.stringify({
+            profile: profileName(),
+            notebook_id: selectedNotebookId(),
+            prompt,
+            source_ids: [],
+            conversation_id: null,
+          }),
+        });
+        el.queryAnswer.textContent = payload.answer || "NotebookLM вернул пустой ответ.";
+        renderCitations(payload);
+        setStatus(el.queryStatus, payload.answer ? "Ответ получен." : "Ответ пустой.", payload.answer ? "ok" : "");
+      } catch (error) {
+        el.queryAnswer.textContent = "Ошибка запроса.";
+        clear(el.citationList);
+        setStatus(el.queryStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("query", false);
+      }
+    }
+
+    async function loadStudioStatus(silent = false) {
+      if (!selectedNotebookId()) {
+        state.studioItems = [];
+        renderArtifacts();
+        if (!silent) setStatus(el.artifactStatus, "Сначала выберите блокнот.");
+        return;
+      }
+
+      setBusy("artifact", true);
+      if (!silent) setStatus(el.artifactStatus, "Загружаю studio status...");
+      try {
+        const payload = await fetchJson(
+          `/notebooklm/studio/status?profile=${encodeURIComponent(profileName())}&notebook_id=${encodeURIComponent(selectedNotebookId())}`,
+        );
+        state.studioItems = Array.isArray(payload.items) ? payload.items : [];
+        renderArtifacts();
+        if (!silent) {
+          setStatus(el.artifactStatus, state.studioItems.length ? "Studio status обновлён." : "Артефактов пока нет.", state.studioItems.length ? "ok" : "");
+        }
+      } catch (error) {
+        setStatus(el.artifactStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("artifact", false);
+      }
+    }
+
+    async function createArtifact() {
+      if (!selectedNotebookId()) {
+        setStatus(el.artifactStatus, "Сначала выберите блокнот.", "err");
+        return;
+      }
+
+      setBusy("artifact", true);
+      setStatus(el.artifactStatus, "Запускаю генерацию артефакта...");
+      try {
+        const artifactType = el.artifactType.value;
+        const prompt = (el.artifactPrompt.value || "").trim();
+        const payload = await fetchJson("/notebooklm/artifacts", {
+          method: "POST",
+          body: JSON.stringify({
+            profile: profileName(),
+            notebook_id: selectedNotebookId(),
+            artifact_type: artifactType,
+            source_ids: [],
+            focus_prompt: prompt || null,
+            description: artifactType === "data-table" ? (prompt || null) : null,
+            language: (el.artifactLanguage.value || "ru").trim() || "ru",
+          }),
+        });
+        state.studioItems = Array.isArray(payload.studio_items) ? payload.studio_items : [];
+        renderArtifacts();
+        setStatus(el.artifactStatus, `Артефакт ${payload.artifact_type} запущен.`, "ok");
+      } catch (error) {
+        setStatus(el.artifactStatus, String(error.message || error), "err");
+      } finally {
+        setBusy("artifact", false);
+      }
+    }
+
+    async function loadNotebookData(silent = false) {
+      await Promise.all([
+        loadSources(silent),
+        loadStudioStatus(silent),
+      ]);
+    }
+
+    async function refreshAll() {
+      await loadAuthStatus();
+      if (state.auth?.authenticated) {
+        await loadNotebooks(true);
+      } else {
+        state.notebooks = [];
+        state.selectedNotebookId = "";
+        state.sources = [];
+        state.studioItems = [];
+        renderNotebookSelect();
+        renderNotebookMeta();
+        renderSources();
+        renderArtifacts();
+      }
+    }
+
+    function bindEvents() {
+      el.loginBtn.addEventListener("click", loginNotebookLM);
+      el.refreshAuthBtn.addEventListener("click", loadAuthStatus);
+      el.refreshNotebooksBtn.addEventListener("click", () => loadNotebooks());
+      el.createNotebookBtn.addEventListener("click", createNotebook);
+      el.refreshSourcesBtn.addEventListener("click", () => loadSources());
+      el.addSourceBtn.addEventListener("click", addSource);
+      el.queryBtn.addEventListener("click", runQuery);
+      el.refreshStudioBtn.addEventListener("click", () => loadStudioStatus());
+      el.runArtifactBtn.addEventListener("click", createArtifact);
+      el.notebookSelect.addEventListener("change", async (event) => {
+        state.selectedNotebookId = event.target.value || "";
+        renderNotebookMeta();
+        await loadNotebookData(true);
+      });
+      el.profileInput.addEventListener("change", refreshAll);
+    }
+
+    bindEvents();
+    renderNotebookSelect();
+    renderNotebookMeta();
+    renderSources();
+    renderArtifacts();
+    refreshAll();
+  </script>
+</body>
+</html>

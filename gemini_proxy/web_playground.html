@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Агенты Gemini</title>
+  <style>
+    :root{--bg:#f4efe4;--panel:rgba(255,252,246,.95);--line:#d7cebe;--text:#20231e;--muted:#677066;--accent:#14573d;--accent-soft:#e4f1ea;--danger:#b75a43;--danger-soft:#f8e8e2;--ok:#1f7b52;--warn:#8b6442;--shadow:0 18px 40px rgba(42,38,31,.1);--xl:24px;--lg:18px;--md:14px}
+    *{box-sizing:border-box}
+    body{margin:0;color:var(--text);font-family:"Segoe UI",Tahoma,sans-serif;background:radial-gradient(circle at top left,rgba(224,235,226,.92) 0,transparent 24%),radial-gradient(circle at bottom right,rgba(240,232,215,.9) 0,transparent 18%),linear-gradient(180deg,#faf7f2 0%,var(--bg) 100%)}
+    .layout{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+    .sidebar{position:sticky;top:0;height:100vh;padding:20px 16px;display:grid;align-content:start;gap:16px;border-right:1px solid rgba(215,206,190,.72);background:rgba(255,252,246,.84);backdrop-filter:blur(12px)}
+    .main{padding:20px;display:grid;gap:16px;align-content:start}
+    .brand,.heading,.panel,.protocol-card,.timeline-card{display:grid;gap:10px}
+    .brand-kicker{margin:0;color:#4769c6;text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:700}
+    .brand-title,.heading h1{margin:0;font-family:Georgia,"Times New Roman",serif;line-height:1}
+    .brand-title{font-size:28px;font-weight:800}.heading h1{font-size:clamp(28px,3vw,40px);font-weight:700}
+    .heading p,.panel-head p,.info,.meta,.lock,.status,.state-text,.protocol-note,.field-note,.timeline-summary,.timeline-step small,.session-note{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
+    .topbar,.panel,.protocol-grid{border:1px solid var(--line);border-radius:var(--xl);background:var(--panel);box-shadow:var(--shadow)}
+    .topbar,.panel{padding:18px}
+    .topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+    .dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+    .panel{min-height:420px;align-content:start}
+    .panel-head,.protocol-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .panel-head h2,.protocol-card h2{margin:0 0 6px;font-size:23px;font-weight:800;line-height:1.1}
+    .badge{white-space:nowrap;padding:8px 11px;border-radius:999px;background:#efe8d9;color:#596358;font-size:12px;font-weight:700}
+    .actions,.protocol-actions,.result{display:flex;flex-wrap:wrap;gap:10px}
+    .summary-state,.protocol-state{display:grid;gap:10px}
+    .state-row{border:1px solid var(--line);border-radius:var(--md);background:rgba(255,255,255,.82);padding:12px;display:grid;gap:4px}
+    .state-row strong{font-size:14px;font-weight:800}
+    button,.link-btn,.download,.agent-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;font:inherit;font-weight:700;text-decoration:none;cursor:pointer;transition:transform .16s ease,opacity .16s ease,background .16s ease,border-color .16s ease}
+    .link-btn,.download,.agent-btn{border:1px solid var(--line);background:rgba(255,255,255,.84);color:var(--muted)}
+    .primary{background:var(--accent);color:#fff;border:1px solid transparent}.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}
+    button:hover,.link-btn:hover,.download:hover,.agent-btn:hover{transform:translateY(-1px)}button:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .agent-list{display:grid;gap:10px}.agent-btn{width:100%;padding:12px 14px;border-radius:18px;text-align:left;display:grid;gap:5px;justify-content:start;color:var(--text)}.agent-btn strong{font-size:15px}.agent-btn span{color:var(--muted);font-size:13px;line-height:1.4;font-weight:500}.agent-btn.active{border-color:rgba(20,87,61,.28);background:linear-gradient(180deg,#f7fbf8 0%,#eef6f1 100%)}
+    .link-btn,.download,button{border-radius:999px;padding:11px 16px}.agent-view.hidden{display:none}
+    .controls{display:grid;gap:10px;align-items:end}.controls.single{grid-template-columns:minmax(0,1fr) auto}.controls.range{grid-template-columns:repeat(2,minmax(0,1fr)) auto}.controls.summary{grid-template-columns:1fr}.controls.infographic{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)) auto}
+    .field{display:grid;gap:6px;min-width:0}.field span{font-size:13px;font-weight:700;color:var(--muted)}
+    select,input[type=file],input[type=text],input[type=url]{width:100%;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.9);color:var(--text);padding:12px 14px;font:inherit}
+    .lock{color:var(--warn);font-weight:600}.status.ok{color:var(--ok)}.status.err{color:var(--danger)}
+    .result{margin-top:auto;padding-top:12px;border-top:1px solid rgba(215,206,190,.7);display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}.doc-name{font-size:14px;font-weight:700;word-break:break-word}.download-slot{display:flex;align-items:flex-start;justify-content:flex-end;gap:8px;min-height:42px}
+    .image-preview{display:grid;gap:10px;padding:12px;border:1px solid rgba(215,206,190,.72);border-radius:var(--md);background:rgba(255,255,255,.86)}.image-preview img{width:100%;height:auto;display:block;border-radius:12px;border:1px solid rgba(215,206,190,.72);background:#fff}
+    .session-note,.timeline-summary{padding:10px 12px;border-radius:12px;background:rgba(244,239,228,.72);border:1px solid rgba(215,206,190,.8)}
+    .timeline-card{border:1px solid rgba(215,206,190,.72);border-radius:var(--md);background:rgba(255,255,255,.86);padding:14px}.timeline-card h3{margin:0;font-size:15px;font-weight:800}
+    .timeline{display:grid;gap:10px}.timeline-step{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:flex-start}.timeline-marker{position:relative;width:22px;display:flex;justify-content:center;min-height:24px}.timeline-marker::before{content:"";width:12px;height:12px;border-radius:999px;border:2px solid var(--line);background:#fff;margin-top:2px;z-index:1}.timeline-step:not(:last-child) .timeline-marker::after{content:"";position:absolute;top:18px;bottom:-12px;width:2px;background:rgba(215,206,190,.9)}.timeline-step-content{display:grid;gap:4px;padding-bottom:10px}.timeline-step strong{font-size:14px}.timeline-step.active strong{color:var(--accent)}.timeline-step.completed strong{color:var(--ok)}.timeline-step.error strong{color:var(--danger)}.timeline-step.active .timeline-marker::before{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 4px rgba(20,87,61,.12)}.timeline-step.completed .timeline-marker::before{border-color:var(--ok);background:var(--ok)}.timeline-step.error .timeline-marker::before{border-color:var(--danger);background:var(--danger-soft)}
+    .protocol-grid{display:grid;grid-template-columns:1fr;gap:16px;padding:16px}.protocol-card{border:1px solid var(--line);border-radius:var(--lg);background:rgba(255,255,255,.82);padding:18px;align-content:start}
+    @media (max-width:1180px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto}.controls.infographic{grid-template-columns:1fr}}
+    @media (max-width:900px){.dashboard{grid-template-columns:1fr}}
+    @media (max-width:720px){.main{padding:14px}.controls.single,.controls.range,.controls.summary,.controls.infographic,.result{grid-template-columns:1fr}.download-slot{justify-content:flex-start}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <p class="brand-kicker">Codex Agent System</p>
+        <h1 class="brand-title">Агенты</h1>
+      </div>
+      <div class="agent-list" id="agentList"></div>
+      <a class="link-btn" href="/admin">Промпты</a>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="heading">
+          <h1 id="currentTitle">Аналитика</h1>
+          <p id="currentDescription"></p>
+        </div>
+        <div class="actions">
+          <button class="danger" id="resetBtn" type="button">Сбросить состояние</button>
+          <a class="link-btn" href="/admin">Админ-панель</a>
+        </div>
+      </header>
+
+      <section class="agent-view" id="analyticsView">
+        <div class="dashboard">
+          <section class="panel" id="day1Section">
+            <div class="panel-head"><div><h2>Первый день</h2><p>Одна дата, входная и выходная анкеты.</p></div><div class="badge">Вход + выход</div></div>
+            <div class="controls single"><label class="field"><span>Дата</span><select id="day1Date"></select></label><button class="primary" id="day1RunBtn" type="button">Сгенерировать</button></div>
+            <div class="info" id="day1Info"></div><div class="lock" id="day1Lock"></div><div class="status" id="day1Status"></div>
+            <div class="result"><div><div class="doc-name" id="day1DocName"></div><div class="meta" id="day1Meta"></div></div><div class="download-slot" id="day1Download"></div></div>
+            <div class="timeline-card"><h3>История статуса</h3><div class="timeline-summary" id="day1TimelineSummary"></div><div class="timeline" id="day1Timeline"></div></div>
+          </section>
+
+          <section class="panel" id="day2Section">
+            <div class="panel-head"><div><h2>Второй день</h2><p>Одна дата или период.</p></div><div class="badge">Диапазон</div></div>
+            <div class="controls range"><label class="field"><span>Дата с</span><select id="day2DateFrom"></select></label><label class="field"><span>Дата по</span><select id="day2DateTo"></select></label><button class="primary" id="day2RunBtn" type="button">Сгенерировать</button></div>
+            <div class="info" id="day2Info"></div><div class="lock" id="day2Lock"></div><div class="status" id="day2Status"></div>
+            <div class="result"><div><div class="doc-name" id="day2DocName"></div><div class="meta" id="day2Meta"></div></div><div class="download-slot" id="day2Download"></div></div>
+            <div class="timeline-card"><h3>История статуса</h3><div class="timeline-summary" id="day2TimelineSummary"></div><div class="timeline" id="day2Timeline"></div></div>
+          </section>
+
+          <section class="panel" id="summarySection">
+            <div class="panel-head"><div><h2>Общая итоговая аналитика</h2><p>Собирается только из готовых текстов первого и второго дня.</p></div><div class="badge">Только после двух частей</div></div>
+            <div class="summary-state">
+              <div class="state-row"><strong>Первый день</strong><div class="state-text" id="summaryDay1State"></div></div>
+              <div class="state-row"><strong>Второй день</strong><div class="state-text" id="summaryDay2State"></div></div>
+              <div class="state-row"><strong>Итоговый документ</strong><div class="state-text" id="summaryFinalState"></div></div>
+            </div>
+            <div class="controls summary"><button class="primary" id="summaryRunBtn" type="button">Собрать итог</button></div>
+            <div class="status" id="summaryStatus"></div>
+            <div class="result"><div><div class="doc-name" id="summaryDocName"></div><div class="meta" id="summaryMeta"></div></div><div class="download-slot" id="summaryDownload"></div></div>
+            <div class="timeline-card"><h3>История статуса</h3><div class="timeline-summary" id="summaryTimelineSummary"></div><div class="timeline" id="summaryTimeline"></div></div>
+          </section>
+
+          <section class="panel" id="infographicSection">
+            <div class="panel-head"><div><h2>Инфографика</h2><p>Блок доступен только после актуальной итоговой аналитики. Google Doc, общее фото и логотип передаются в отдельный блокнот NotebookLM.</p></div><div class="badge">NotebookLM</div></div>
+            <div class="summary-state">
+              <div class="state-row"><strong>Итоговая аналитика</strong><div class="state-text" id="infographicSummaryState"></div></div>
+              <div class="state-row"><strong>Google Doc</strong><div class="state-text" id="infographicGoogleDocState"></div></div>
+              <div class="state-row"><strong>Последний результат</strong><div class="state-text" id="infographicNotebookState"></div></div>
+            </div>
+            <div class="controls infographic">
+              <label class="field"><span>Google Doc</span><input id="infographicGoogleDoc" type="url" placeholder="https://docs.google.com/..."></label>
+              <label class="field"><span>Общее фото</span><input id="infographicPhoto" type="file" accept="image/*"></label>
+              <label class="field"><span>Логотип</span><input id="infographicLogo" type="file" accept="image/*"></label>
+              <button class="primary" id="infographicRunBtn" type="button">Создать</button>
+            </div>
+            <div class="info" id="infographicPhotoInfo"></div>
+            <div class="info" id="infographicLogoInfo"></div>
+            <div class="status" id="infographicStatus"></div>
+            <div class="result"><div><div class="doc-name" id="infographicNotebookName"></div><div class="meta" id="infographicMeta"></div></div><div class="download-slot" id="infographicOpen"></div></div>
+            <div class="image-preview" id="infographicImageWrap" hidden><img id="infographicImage" alt="Инфографика"></div>
+            <div class="timeline-card"><h3>История статуса</h3><div class="timeline-summary" id="infographicTimelineSummary"></div><div class="timeline" id="infographicTimeline"></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="agent-view hidden" id="protocolView">
+        <div class="protocol-grid">
+          <section class="protocol-card">
+            <div class="protocol-card-head"><div><h2>Протокол</h2><p class="protocol-note">Загрузите видео или аудио встречи, чтобы сформировать протокол. Агент конвертирует запись в аудио, при необходимости разобьет на части, расшифрует фрагменты и соберет итоговый документ.</p></div></div>
+            <label class="field"><span>Файл записи</span><input id="protocolFile" type="file" accept="video/*,audio/*"></label>
+            <p class="field-note" id="protocolFileInfo">Файл пока не выбран.</p>
+            <div class="protocol-actions"><button class="primary" id="protocolRunBtn" type="button">Загрузить и сформировать протокол</button></div>
+            <div class="status" id="protocolStatus"></div>
+            <div class="result"><div><div class="doc-name" id="protocolDocName"></div><div class="meta" id="protocolMeta"></div></div><div class="download-slot" id="protocolDownload"></div></div>
+            <div class="timeline-card"><h3>История статуса</h3><div class="timeline-summary" id="protocolTimelineSummary"></div><div class="timeline" id="protocolTimeline"></div></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/web-playground.js"></script>
+</body>
+</html>
